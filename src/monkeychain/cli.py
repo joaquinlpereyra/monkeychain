@@ -7,3 +7,4 @@ from . import __version__
 def main():
     """Start up a new monkeychain node."""
     click.echo("Starting up...")
+

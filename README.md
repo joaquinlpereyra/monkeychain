@@ -9,6 +9,7 @@ to install both.
 Once you have the environment set up, you can just do
 
 ```
-$ poetry run monkeychain
+$ poetry install # only need to do this once
+$ FLASK_DEBUG=1 poetry run flask run
 ```
 

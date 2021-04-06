@@ -1,10 +1,5 @@
 import hashlib
 import json
-from time import time
-from typing import Optional
-from monkeychain.block import Block
-from typing import List
-from dataclasses import dataclass
 
 
 class Tx:
@@ -45,11 +40,13 @@ class Block:
 
 
 class Blockchain:
+    GENESIS = Block(0, 0.00, [], 100, 0)
+
     def __init__(self):
         """Create a new blockchain. If you are not a monkey this
         will make your computer explode.
         """
-        self.chain = []
+        self.chain = [Blockchain.GENESIS]
 
     def __len__(self):
         return len(self.chain)
@@ -59,6 +56,6 @@ class Blockchain:
         self.chain.append(block)
         return block
 
-    def last_block(self) -> Optional[Block]:
+    def last_block(self) -> Block:
         """Return the last block on the chain"""
         return self.chain[-1]

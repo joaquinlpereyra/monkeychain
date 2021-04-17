@@ -2,22 +2,28 @@ import click
 
 from monkeychain.blockchain import Blockchain, Block, Tx
 from typing import List
-from flask import Flask
-from flask_jsonrpc import JSONRPC
+from uuid import uuid4
+from flask import Flask, request, jsonify
 
-FLASK = Flask(__name__)
-jsonrpc = JSONRPC(FLASK, "/api", enable_web_browsable_api=True)
+app = Flask(__name__)
 
+
+NODE_ID = str(uuid4())
 BLOCKCHAIN = Blockchain()
 
 
-@jsonrpc.method("submit_block")
-def submit_block(
-    self, index: int, timestamp: float, txs: List[dict], proof: int, previous: int
-) -> bool:
-    return True
+@app.route("/add_tx", methods=["POST"])
+def add_transaction():
+    tx = request.get_json()
+    if not tx.get("sender") or not tx.get("receiver") or not tx.get("amount"):
+        return "Missing values", 400
+
+    tx = Tx(tx.get("sender"), tx.get("receiver"), tx.get("amount"))
+
+    index = BLOCKCHAIN.new_transaction(tx)
+    response = {"index": index}
+    return jsonify(response), 201
 
 
-@jsonrpc.method("get_last_block")
-def get_last_block() -> Block:
-    return BLOCKCHAIN.last_block()
+BLOCKCHAIN.mine()
+app.run()

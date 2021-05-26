@@ -10,6 +10,11 @@ Once you have the environment set up, you can just do
 
 ```
 $ poetry install # only need to do this once
-$ FLASK_DEBUG=1 poetry run flask run
+$ poetry run src/monkeychain/app.py $PORT $PEER
 ```
 
+## Things missing
+
+This is a toy blockchain. It implements a pretty simplistic proof of work
+algorithm and has no such concept as difficulty: a node can't switch chains
+even if another node presents a block witch much more work put into it.

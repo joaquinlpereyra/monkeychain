@@ -10,6 +10,7 @@ click = "^7.1.2"
 Flask = "^1.1.2"
 Flask-JSONRPC = "^1.1.0"
 typing-extensions = "^3.7.4"
+requests = "^2.25.1"
 
 [tool.poetry.scripts]
 monkeychain = "monkeychain.app:main"

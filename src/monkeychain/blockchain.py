@@ -1,9 +1,10 @@
 import hashlib
 import json
-from time import time
 from typing import List
 import threading
+import requests
 import time
+import random
 
 
 class Tx:
@@ -28,33 +29,58 @@ class Block:
     def __init__(self, index, timestamp, txs, proof, previous):
         self.index = index
         self._timestamp = timestamp
-        self._txs = txs
+        self.txs = txs
         self.proof = proof
-        self._previous = previous
+        self.previous = previous
 
         self.as_dict = {
             "index": self.index,
             "timestamp": self._timestamp,
-            "txs": [tx.as_dict for tx in self._txs],
+            "txs": [tx.as_dict for tx in self.txs],
             "proof": self.proof,
-            "previous": self._previous,
+            "previous": self.previous,
         }
         self.as_json = json.dumps(self.as_dict, sort_keys=True).encode()
         self.hash = hashlib.sha256(self.as_json).hexdigest()
+        self.short_hash = self.hash[:8]
 
     def __hash__(self):
         return self.hash
 
 
+class Network:
+    def __init__(self, local_endpoint):
+        print(f"[NETWORK] Local endpoint: {local_endpoint}")
+        self.peers = []
+        self.local_endpoint = local_endpoint
+
+    def add_peer(self, peer, notify_peer=False):
+        print(f"[NETWORK] Trying to add peer: {peer}")
+
+        if peer not in self.peers:
+            print(f"[NETWORK] Adding peer: {peer}")
+            self.peers.append(f"http://{peer}")
+            if notify_peer:
+                requests.post(f"http://{peer}/add_peer", json={'endpoint': f"{self.local_endpoint}"})
+
+        print(f"[NETWORK] Peer list: {self.peers}")
+
+    def broadcast_block(self, block):
+        for peer in self.peers:
+            print(f"[NETWORK] [BROADCAST BLOCK] Hash {block.short_hash} to peer {peer}")
+            requests.post(f"{peer}/add_block", json=block.as_dict)
+                
+
 class Blockchain:
     GENESIS = Block(0, 0.00, [], 100, 0)
 
-    def __init__(self):
+    def __init__(self, network):
         """Create a new blockchain. If you are not a monkey this
         will make your computer explode.
         """
         self.chain: List[Block] = [Blockchain.GENESIS]
         self.pending_transactions: List[Tx] = []
+        self.network = network
 
     def new_transaction(self, tx: Tx):
         print(f"Adding unconfirmed transaction: {tx.hash} -> {tx.as_dict}")
@@ -64,6 +90,7 @@ class Blockchain:
     def mine(self):
         def do():
             while True:
+                time.sleep(random.uniform(10, 5))
                 proof = 0
                 last_proof = self.last_block.proof
                 while not self.is_valid_proof(last_proof, proof):
@@ -71,8 +98,17 @@ class Blockchain:
                     # in the network may have sent us a valid block
                     last_proof = self.last_block.proof
                     proof += 1
-                print(f"Found block with proof {proof}! Adding and propagating.")
-                self._append_block(proof)
+                block = Block(
+                    index=self.last_block.index + 1,
+                    timestamp=time.time(),
+                    txs=self.pending_transactions,
+                    proof=proof,
+                    previous=self.last_block.hash,
+                )
+                print(f"[BLOCKCHAIN] [MINE] New block! hash {block.short_hash}, proof {proof}!")
+                self.append_block(block)
+                self.network.broadcast_block(block)
+                self.pending_transactions = []
 
         thread = threading.Thread(target=do)
         thread.start()
@@ -92,18 +128,28 @@ class Blockchain:
     def __len__(self):
         return len(self.chain)
 
-    def _append_block(self, proof) -> Block:
+    def append_block(self, block) -> Block:
         """Creates a new block and adds it to the chain"""
-        print(f"New block: index {self.last_block.index + 1} | proof {proof}")
-        block = Block(
-            index=self.last_block.index + 1,
-            timestamp=time.time(),
-            txs=self.pending_transactions,
-            proof=proof,
-            previous=self.last_block.hash,
-        )
+        print(f"[BLOCKCHAIN] [APPEND_BLOCK] Index: {block.index} | proof {block.proof} | hash {block.short_hash}")
+
+        if not self.is_valid_proof(self.last_block.proof, block.proof):
+            print(f"[BLOCKCHAIN] [APPEND_BLOCK] Index: {block.index} | proof {block.proof} invalid!")
+            raise ValueError("Invalid proof on block")
+
+        if block.index == self.last_block.index:
+            print(f"[BLOCKCHAIN] [APPEND_BLOCK] Index: {block.index} | Received just computed block. FIGHT!")
+            raise ValueError("Already have that block.")
+
+        if block.previous != self.last_block.hash:
+            print(f"[BLOCKCHAIN] [APPEND_BLOCK] Index: {block.index} | Different previous block!")
+            if block.index <= self.last_block.index:
+                print(f"[BLOCKCHAIN] [APPEND_BLOCK] Index: {block.index} | Received block is behind.")
+                raise ValueError("Stale block received")
+
+        print(f"[BLOCKCHAIN] [APPEND_BLOCK] Accepted block hash: {block.short_hash} | txs: {[tx.hash for tx in block.txs]}")
+        
+
         self.chain.append(block)
-        self.pending_transactions = []
         return block
 
     @property
